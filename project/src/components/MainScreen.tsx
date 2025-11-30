@@ -74,19 +74,23 @@ export const MainScreen = ({
             <ul className="space-y-2 text-slate-300 text-sm">
               <li className="flex items-start">
                 <span className="text-blue-400 mr-2">•</span>
-                <span>24 noktalı kalibrasyon (4x4 grid + 8 hareket)</span>
+                <span>Head Position Check (Kalibrasyon öncesi hizalama)</span>
               </li>
               <li className="flex items-start">
                 <span className="text-blue-400 mr-2">•</span>
-                <span>Manuel görüntü işleme (CLAHE, Sobel, morfoloji)</span>
+                <span>24 noktalı kalibrasyon + Outlier Removal</span>
               </li>
               <li className="flex items-start">
                 <span className="text-blue-400 mr-2">•</span>
-                <span>Polinom regresyon ile gaze mapping</span>
+                <span>Manuel CV (CLAHE, Sobel, HSV maskeleme)</span>
               </li>
               <li className="flex items-start">
                 <span className="text-blue-400 mr-2">•</span>
-                <span>Gerçek zamanlı smoothed tracking</span>
+                <span>6 parametreli polinom regresyon (x², y², xy)</span>
+              </li>
+              <li className="flex items-start">
+                <span className="text-blue-400 mr-2">•</span>
+                <span>Exponential smoothing (α=0.2) + Pulse animasyon</span>
               </li>
               <li className="flex items-start">
                 <span className="text-blue-400 mr-2">•</span>

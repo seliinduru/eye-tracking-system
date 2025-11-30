@@ -352,4 +352,77 @@ export class ImageProcessing {
 
     return cropped.length > 0 && cropped[0].length > 0 ? cropped : [[128]];
   }
+
+  static rgbToHsv(imageData: ImageData): number[][] {
+    const { width, height, data } = imageData;
+    const hsv: number[][] = [];
+
+    for (let y = 0; y < height; y++) {
+      const row: number[] = [];
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * 4;
+        const r = data[idx] / 255;
+        const g = data[idx + 1] / 255;
+        const b = data[idx + 2] / 255;
+
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const delta = max - min;
+
+        let h = 0;
+        if (delta !== 0) {
+          if (max === r) {
+            h = 60 * (((g - b) / delta) % 6);
+          } else if (max === g) {
+            h = 60 * ((b - r) / delta + 2);
+          } else {
+            h = 60 * ((r - g) / delta + 4);
+          }
+        }
+        if (h < 0) h += 360;
+
+        const s = max === 0 ? 0 : delta / max;
+        const v = max;
+
+        row.push(Math.floor(h));
+        row.push(Math.floor(s * 255));
+        row.push(Math.floor(v * 255));
+      }
+      hsv.push(row);
+    }
+
+    return hsv;
+  }
+
+  static maskByColorRange(
+    hsv: number[][],
+    lowerBound: [number, number, number],
+    upperBound: [number, number, number]
+  ): number[][] {
+    const height = hsv.length;
+    const width = hsv[0].length / 3;
+    const mask: number[][] = [];
+
+    for (let i = 0; i < height; i++) {
+      const row: number[] = [];
+      for (let j = 0; j < width; j++) {
+        const h = hsv[i][j * 3];
+        const s = hsv[i][j * 3 + 1];
+        const v = hsv[i][j * 3 + 2];
+
+        const inRange =
+          h >= lowerBound[0] &&
+          h <= upperBound[0] &&
+          s >= lowerBound[1] &&
+          s <= upperBound[1] &&
+          v >= lowerBound[2] &&
+          v <= upperBound[2];
+
+        row.push(inRange ? 255 : 0);
+      }
+      mask.push(row);
+    }
+
+    return mask;
+  }
 }

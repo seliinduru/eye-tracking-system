@@ -14,8 +14,11 @@ export const TrackingScreen = ({
   onStop,
 }: TrackingScreenProps) => {
   const [gazePos, setGazePos] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+  const [pulseScale, setPulseScale] = useState(1);
   const smoothedPos = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const animationRef = useRef<number>();
+  const pulseRef = useRef<number>();
+  const pulseDirection = useRef(1);
 
   useEffect(() => {
     const updateTracking = () => {
@@ -25,11 +28,11 @@ export const TrackingScreen = ({
         const screenPos = calibrationSystem.mapGazeToScreen(pupilData);
 
         if (screenPos) {
-          const [x, y] = screenPos;
+          const [rawX, rawY] = screenPos;
 
-          const alpha = 0.3;
-          smoothedPos.current.x = alpha * x + (1 - alpha) * smoothedPos.current.x;
-          smoothedPos.current.y = alpha * y + (1 - alpha) * smoothedPos.current.y;
+          const alpha = 0.2;
+          smoothedPos.current.x = alpha * rawX + (1 - alpha) * smoothedPos.current.x;
+          smoothedPos.current.y = alpha * rawY + (1 - alpha) * smoothedPos.current.y;
 
           smoothedPos.current.x = Math.max(
             10,
@@ -50,11 +53,31 @@ export const TrackingScreen = ({
       animationRef.current = requestAnimationFrame(updateTracking);
     };
 
+    const updatePulse = () => {
+      setPulseScale((prev) => {
+        let newScale = prev + pulseDirection.current * 0.015;
+        if (newScale >= 1.2) {
+          newScale = 1.2;
+          pulseDirection.current = -1;
+        } else if (newScale <= 0.9) {
+          newScale = 0.9;
+          pulseDirection.current = 1;
+        }
+        return newScale;
+      });
+
+      pulseRef.current = requestAnimationFrame(updatePulse);
+    };
+
     updateTracking();
+    updatePulse();
 
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
+      }
+      if (pulseRef.current) {
+        cancelAnimationFrame(pulseRef.current);
       }
     };
   }, [calibrationSystem, captureFrame]);
@@ -72,10 +95,18 @@ export const TrackingScreen = ({
         <circle
           cx={gazePos.x}
           cy={gazePos.y}
-          r="10"
+          r={10 * pulseScale}
           fill="url(#gazeGradient)"
           stroke="white"
           strokeWidth="2"
+        />
+
+        <circle
+          cx={gazePos.x}
+          cy={gazePos.y}
+          r={5 * pulseScale}
+          fill="white"
+          opacity="0.8"
         />
 
         <circle

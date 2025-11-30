@@ -13,6 +13,7 @@ interface MappingMatrix {
 
 export class CalibrationSystem {
   private gazeSamples: CalibrationSample[] = [];
+  private rawSamplesPerPoint: { [key: string]: CalibrationSample[] } = {};
   private mappingMatrix: MappingMatrix | null = null;
 
   generateCalibrationPoints(
@@ -59,11 +60,19 @@ export class CalibrationSystem {
         rightCorner[0] - leftCorner[0],
       ];
 
-      this.gazeSamples.push({
+      const sample: CalibrationSample = {
         screen: screenPoint,
         gazeVector: gazeVector,
         pupil: pupilCenter,
-      });
+      };
+
+      const pointKey = `${screenPoint[0]},${screenPoint[1]}`;
+      if (!this.rawSamplesPerPoint[pointKey]) {
+        this.rawSamplesPerPoint[pointKey] = [];
+      }
+      this.rawSamplesPerPoint[pointKey].push(sample);
+
+      this.gazeSamples.push(sample);
     }
   }
 
@@ -72,13 +81,19 @@ export class CalibrationSystem {
       return false;
     }
 
+    const cleanedSamples = this.removeOutliers();
+
+    if (cleanedSamples.length < 10) {
+      return false;
+    }
+
     const X: number[][] = [];
     const Yx: number[] = [];
     const Yy: number[] = [];
 
-    for (const sample of this.gazeSamples) {
+    for (const sample of cleanedSamples) {
       const [gx, gy, gz] = sample.gazeVector;
-      X.push([gx, gy, gz, gx * gy, 1]);
+      X.push([gx, gy, gx * gx, gy * gy, gx * gy, 1]);
       Yx.push(sample.screen[0]);
       Yy.push(sample.screen[1]);
     }
@@ -95,6 +110,59 @@ export class CalibrationSystem {
     } catch {
       return false;
     }
+  }
+
+  private removeOutliers(): CalibrationSample[] {
+    const cleanedSamples: CalibrationSample[] = [];
+
+    for (const pointKey in this.rawSamplesPerPoint) {
+      const samples = this.rawSamplesPerPoint[pointKey];
+      if (samples.length === 0) continue;
+
+      const gxValues = samples.map((s) => s.gazeVector[0]);
+      const gyValues = samples.map((s) => s.gazeVector[1]);
+      const gzValues = samples.map((s) => s.gazeVector[2]);
+
+      const gxMean = gxValues.reduce((a, b) => a + b, 0) / gxValues.length;
+      const gyMean = gyValues.reduce((a, b) => a + b, 0) / gyValues.length;
+      const gzMean = gzValues.reduce((a, b) => a + b, 0) / gzValues.length;
+
+      const gxStd = Math.sqrt(
+        gxValues.reduce((acc, val) => acc + Math.pow(val - gxMean, 2), 0) / gxValues.length
+      );
+      const gyStd = Math.sqrt(
+        gyValues.reduce((acc, val) => acc + Math.pow(val - gyMean, 2), 0) / gyValues.length
+      );
+      const gzStd = Math.sqrt(
+        gzValues.reduce((acc, val) => acc + Math.pow(val - gzMean, 2), 0) / gzValues.length
+      );
+
+      const filteredSamples = samples.filter((s) => {
+        const [gx, gy, gz] = s.gazeVector;
+        return (
+          Math.abs(gx - gxMean) <= 2 * gxStd &&
+          Math.abs(gy - gyMean) <= 2 * gyStd &&
+          Math.abs(gz - gzMean) <= 2 * gzStd
+        );
+      });
+
+      if (filteredSamples.length > 0) {
+        const avgGx =
+          filteredSamples.reduce((acc, s) => acc + s.gazeVector[0], 0) / filteredSamples.length;
+        const avgGy =
+          filteredSamples.reduce((acc, s) => acc + s.gazeVector[1], 0) / filteredSamples.length;
+        const avgGz =
+          filteredSamples.reduce((acc, s) => acc + s.gazeVector[2], 0) / filteredSamples.length;
+
+        cleanedSamples.push({
+          screen: filteredSamples[0].screen,
+          gazeVector: [avgGx, avgGy, avgGz],
+          pupil: filteredSamples[0].pupil,
+        });
+      }
+    }
+
+    return cleanedSamples;
   }
 
   private leastSquares(X: number[][], Y: number[]): number[] {
@@ -179,16 +247,17 @@ export class CalibrationSystem {
     const features = [
       gazeVector[0],
       gazeVector[1],
-      gazeVector[2],
+      gazeVector[0] * gazeVector[0],
+      gazeVector[1] * gazeVector[1],
       gazeVector[0] * gazeVector[1],
       1,
     ];
 
-    const screenX = features.reduce(
+    let screenX = features.reduce(
       (acc, f, i) => acc + f * this.mappingMatrix!.xCoeffs[i],
       0
     );
-    const screenY = features.reduce(
+    let screenY = features.reduce(
       (acc, f, i) => acc + f * this.mappingMatrix!.yCoeffs[i],
       0
     );
@@ -198,5 +267,9 @@ export class CalibrationSystem {
 
   getSampleCount(): number {
     return this.gazeSamples.length;
+  }
+
+  isCalibrated(): boolean {
+    return this.mappingMatrix !== null;
   }
 }

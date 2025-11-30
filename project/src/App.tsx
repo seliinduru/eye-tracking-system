@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react';
 import { MainScreen } from './components/MainScreen';
+import { HeadPositionCheckScreen } from './components/HeadPositionCheckScreen';
 import { CalibrationScreen } from './components/CalibrationScreen';
 import { TrackingScreen } from './components/TrackingScreen';
 import { useWebcam } from './hooks/useWebcam';
 import { CalibrationSystem } from './utils/calibrationSystem';
 
-type AppState = 'main' | 'calibrating' | 'tracking';
+type AppState = 'main' | 'headCheck' | 'calibrating' | 'tracking';
 
 function App() {
   const [appState, setAppState] = useState<AppState>('main');
@@ -14,14 +15,20 @@ function App() {
   const calibrationSystemRef = useRef(new CalibrationSystem());
 
   const handleStartCalibration = () => {
+    setAppState('headCheck');
+  };
+
+  const handleHeadAlignmentComplete = () => {
     setAppState('calibrating');
   };
 
   const handleCalibrationComplete = (success: boolean) => {
     setAppState('main');
-    setIsCalibrated(success);
 
-    if (!success) {
+    if (success && calibrationSystemRef.current.isCalibrated()) {
+      setIsCalibrated(true);
+    } else {
+      setIsCalibrated(false);
       alert('Kalibrasyon başarısız oldu. Lütfen tekrar deneyin.');
     }
   };
@@ -50,6 +57,13 @@ function App() {
           isCalibrated={isCalibrated}
           webcamError={error}
           webcamReady={isReady}
+        />
+      )}
+
+      {appState === 'headCheck' && (
+        <HeadPositionCheckScreen
+          captureFrame={captureFrame}
+          onAlignmentComplete={handleHeadAlignmentComplete}
         />
       )}
 
